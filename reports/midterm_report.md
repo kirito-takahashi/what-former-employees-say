@@ -6,9 +6,9 @@
 >
 > Our product team has to decide **whether the employer page should include a "What Former Employees Say" section, and if so, for which companies**.
 >
-> The data I have is **9.9 million Glassdoor reviews of about 35K employers (2008-2023), with rating, Cons text, tenure, and date**.
+> The data I have is **9.9 million Glassdoor reviews from about 35K employers (2008-2023), including rating, Cons text, tenure, and date**.
 
-Former and current employees may have different views, but their ratings are usually mixed into one average. We test whether that difference is large enough to show separately, and which employers have enough reviews to show it reliably.
+Former and current employees may have different views, but their ratings are usually combined into a single average. We test whether that difference is large enough to show separately, and which employers have enough reviews to show it reliably.
 
 ### 1.2 Research Questions and Statistical Tasks
 
@@ -18,7 +18,7 @@ Former and current employees may have different views, but their ratings are usu
 | RQ2 | At the same rating, does Cons text still distinguish former from current, and what words drive it? | Binary classification (TF-IDF logistic regression, AUC) | Review           | What the section shows (themes and quotes, or ratings only) |
 | RQ3 | How many reviews are needed to trust a former-vs-current rating gap?                               | Sample size analysis (resampling)                       | Employer         | Which employers can show the section                        |
 
-All three questions measure association between employment status and reviews. **We do not claim that leaving an employer causes lower ratings**.
+All three questions measure association between employment status and reviews. The key point here is that **we do not claim leaving a company causes lower ratings**.
 
 ### 1.3 Hypotheses
 
@@ -44,7 +44,7 @@ Reviews are voluntary and employment status is self-reported.
 
 ### 2.2 Target Population and Observed Sample
 
-The observed sample may differ from the target population because only people who choose to write reviews are included.
+The observed sample may differ from the target population because it includes only people who choose to write reviews.
 Only a small share of the employee population chooses to post reviews. Some employee experiences may therefore be missing from the data, for example because of privacy concerns. In addition, some groups may be overrepresented in the data, such as former employees who left unhappy and current employees whose employer encouraged them to post.
 We therefore acknowledge these limitations before the analysis.
 
@@ -88,11 +88,11 @@ Most ratings are 4 or 5 (mean 3.71, median 4), and former employees rate 0.50 lo
 
 ### 3.1 Baseline per Research Question
 
-**RQ1.** The baseline is the pooled gap, the average former rating minus the average current rating across all reviews, ignoring employer. This gap is −0.50.
+**RQ1.** The baseline is the pooled gap.  We calculate it as the average former rating minus the current rating across all reviews, ignoring the employer. The gap is −0.50.
 
-**RQ2.** The baseline is a word count model, a logistic regression on raw word counts in Cons.
+**RQ2.** We use a word-count model as the baseline: a logistic regression on raw word counts in Cons.
 
-**RQ3.** The baseline is a normal approximation. For a gap between two group means with n reviews each, requiring the 95% margin to be at most 0.25 gives
+**RQ3.** We use a normal approximation as the baseline. For a gap between two group means with n reviews each, requiring the 95% margin to be at most 0.25 gives
 
 $$
 n^* = 2\left(\frac{1.96\,\sigma}{0.25}\right)^2 = 183
@@ -116,17 +116,17 @@ For each employer with at least 10 former and 10 current reviews (8,539 employer
 
 ### 4.2 RQ2: Text Signal
 
-We split employers into train, validation and test sets (64/16/20), so no employer appears in more than one set. Otherwise the model could learn employer-specific words, such as product names, and look better than it really is. The TF-IDF vocabulary and the logistic regression are fit on the training set only. The validation set is used to tune settings such as the regularization strength, and the test set is used once. Before fitting, we remove phrases that state the status outright, such as "I left" and "laid off". Past-tense wording such as "was" or "used to" can still reveal status, so we check whether such words appear among the top predictors. We evaluate on pairs of one former and one current review from the same test employer with the same rating. The AUC is the share of pairs in which the model gives the former review the higher score. We average the AUC across employers and compute its 95% CI by bootstrap resampling of test employers. The word count model is evaluated on the same pairs. Finally, we list the 20 words with the largest coefficients for former-employee status to test whether "management" is among them.
+We split all of the companies into train, validation, and test sets. We set aside 80% for training and 20% for testing, then split the training data into 80% for training and 20% for validation. So no employer appears in more than one set. Otherwise, the model could learn employer-specific words, such as product names, and look better than it really is. We fit the TF-IDF vocabulary and logistic regression only on the training set. We use the validation set to tune settings such as regularization strength, and we use the test set once. Before fitting, we remove phrases that state the status outright, such as "I left" and "laid off". Past-tense wording such as “was” or “used to” can signal current-former status, so we check whether such words appear among the top words of prediction. We evaluate on pairs of one former and one current review from the same test employer with the same rating. The AUC is the share of pairs in which the model gives the former review the higher score. We average the AUC across employers and compute its 95% CI by bootstrapping of test employers. The word count model is evaluated on the same pairs. Finally, we list the 20 words with the largest coefficients for former-employee status to test whether "management" is among them.
 
 ### 4.3 RQ3: Reviews Needed
 
-We use employers with at least 1,000 former and 1,000 current reviews as reference employers, and treat each one's full-data gap as its reference gap. The reference gap is itself an estimate with sampling error. Using the same normal approximation as in Section 3.1, an employer with exactly 1,000 former and 1,000 current reviews has a 95% margin of $1.96 \times 1.22 \times \sqrt{2/1000} \approx \pm 0.11$ points, and employers with more reviews have smaller margins. For each reference employer and each n from 50 to 300 in steps of 10, we draw n former and n current reviews separately with replacement and compute the gap, repeating this 1,000 times. We define n\* as the smallest n at which 95% of draws, pooled across reference employers, fall within ±0.25 of the reference gap. The tolerance of 0.25 is half the pooled 0.50 gap and matches the smallest gap we treat as meaningful in RQ1. The 95% level matches the confidence level used elsewhere. We repeat the analysis with tolerances of 0.20 and 0.30 and a 90% level to see how much n\* changes.
+We use companies with at least 1,000 former and 1,000 current reviews as reference companies. We treat each one’s data gap as its reference gap. The reference gap is an estimate with sampling error. Using the same normal approximation as in Section 3.1, an employer with exactly 1,000 former and 1,000 current reviews has a 95% margin of $1.96 \times 1.22 \times \sqrt{2/1000} \approx \pm 0.11$ points, and employers with more reviews have smaller margins. Within the same company, we draw n former and n current reviews separately, each n from 50 to 300 in steps of 10 with replacement. Then we compute the gap and repeat this 1,000 times. We define n* as the smallest n at which 95% of draws, pooled across reference employers, fall within ±0.25 of the reference gap. The tolerance of 0.25 is half the pooled 0.50 gap and matches the smallest gap we treat as meaningful in RQ1. The 95% level matches the confidence level used elsewhere. We repeat the analysis with tolerances of 0.20 and 0.30 and a 90% level to see how much n* changes.
 
 ## 5. Preliminary Results, Supported and Limited Claims
 
 ### 5.1 Preliminary Results
 
-Across all reviews, former employees rate their employer 0.50 points lower than current employees (pooled gap −0.50). This is twice the 0.25 points we treat as the smallest gap that matters to users, although the pooled gap ignores differences between employers. Under the normal approximation, an employer needs at least 183 former and 183 current reviews to estimate its gap within ±0.25. Only 6.7% of employers in the filtered sample meet this bar, but they hold 80.1% of all reviews. This is consistent with H3, since far more than half of employers lack enough reviews.
+Across all reviews, former employees rate their employer 0.50 points lower than current employees (pooled gap −0.50). This is twice the 0.25 points we treat as the smallest gap that matters to users. Each employer needs at least 183 reviews, both former and current, to estimate its gap within ±0.25 under a normal approximation. Only 6.7% of employers in the filtered sample meet this bar, but they hold 80.1% of all reviews. This supports H3, since far more than half of employers lack enough reviews.
 
 ### 5.2 Supported vs Limited Claims
 
