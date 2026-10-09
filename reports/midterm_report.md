@@ -35,9 +35,10 @@ All three questions measure association between employment status and reviews. *
 
 ### 2.1 How the Data Were Generated
 
-The data was scraped from Glassdoor, an online job search and career community platform and shared on Kaggle.
+The data was scraped from Glassdoor, an online job search and career community platform, and shared on Kaggle.
+
 Original Dataset: [Glassdoor Job Reviews 2](https://www.kaggle.com/datasets/davidgauthier/glassdoor-job-reviews-2)
-Licence: [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+License: [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
 It has 9.9M rows with numerical, categorical, text, and time series data.
 Reviews are voluntary and status is self-reported
@@ -73,7 +74,7 @@ df = df.dropna(subset=["firm_id", "rating", "former", "date"])
 
 ### 2.4 Filtering
 
-We kept only regular employees' reviews written in 2020 or later, which left 4,950,344 ones. We excluded 'interns' and 'contractors' because for them former often just means the contract ended, and they make up only 0.1% of reviews. We kept 2020 onward because this is the most recent period available in the dataset, and these reviews still make up over half of the data. Requiring at least 10 former and 10 current reviews leaves 8,539 employers with 98% of the reviews, and requiring at least 1,000 of each leaves 333 employers.
+We kept only regular employees' reviews written in 2020 or later, which left 4,950,344 reviews. We excluded 'interns' and 'contractors' because for them former often just means the contract ended, and they make up only 0.1% of reviews. We kept 2020 onward because this is the most recent period available in the dataset, and these reviews still make up over half of the data. Requiring at least 10 former and 10 current reviews leaves 8,539 employers with 98% of the reviews, and requiring at least 1,000 of each leaves 333 employers.
 
 ### 2.5 Distributions
 
@@ -120,7 +121,7 @@ We split employers into train, validation and test sets (64/16/20), so no employ
 
 ### 4.3 RQ3: Reviews Needed
 
-We use employers with at least 1,000 former and 1,000 current reviews as reference employers, and treat each one's full-data gap as its reference gap. This is a reference rather than the true gap, but with 1,000 reviews per group its own 95% margin is only about ±0.11 points. For each reference employer and each n from 50 to 300 in steps of 10, we draw n former and n current reviews separately with replacement and compute the gap, repeating this 1,000 times. We define n* as the smallest n at which 95% of draws, pooled across reference employers, fall within ±0.25 of the reference gap. The tolerance of 0.25 is half the pooled 0.50 gap, so an estimate this close cannot flip the sign of a typical gap, and the 95% level matches the confidence level used elsewhere. We repeat the analysis with tolerances of 0.20 and 0.30 and a 90% level to see how much n* changes.
+We use employers with at least 1,000 former and 1,000 current reviews as reference employers, and treat each one's full-data gap as its reference gap. The reference gap is itself an estimate with sampling error. Using the same normal approximation as in Section 3.1, an employer with exactly 1,000 former and 1,000 current reviews has a 95% margin of $1.96 \times 1.22 \times \sqrt{2/1000} \approx \pm 0.11$ points, and employers with more reviews have smaller margins. For each reference employer and each n from 50 to 300 in steps of 10, we draw n former and n current reviews separately with replacement and compute the gap, repeating this 1,000 times. We define n* as the smallest n at which 95% of draws, pooled across reference employers, fall within ±0.25 of the reference gap. The tolerance of 0.25 is half the pooled 0.50 gap and matches the smallest gap we treat as meaningful in RQ1. The 95% level matches the confidence level used elsewhere. We repeat the analysis with tolerances of 0.20 and 0.30 and a 90% level to see how much n* changes.
 
 ## 5. Preliminary Results, Supported and Limited Claims
 
@@ -142,12 +143,6 @@ Across all reviews, former employees rate their employer 0.50 points lower than 
 
 ### 6.1 Next Steps
 
-- Run the main methods and compare them with the baselines
-- Check n\* = 183 against resampling
-- Run sensitivity checks on the thresholds
-- Check the RQ1 gap within tenure bands
-
-### 6.2 Decision Rule
-
-- How RQ1 to RQ3 combine into use, conditional use, hold or reject
-- Which employers the recommendation applies to
+For RQ1, we will compute the within-employer gap with its bootstrap CI and compare it with the pooled gap.
+For RQ2, we will fit the TF-IDF model, evaluate it on same-employer, same-rating pairs in the test set, and compare it with the word count model.
+For RQ3, we will run the resampling on the reference employers and check whether it confirms n\* = 183. We will also repeat each analysis with other thresholds to see whether the conclusions change. Finally, we will compare the RQ1 gap within tenure bands, because former and current employees may differ in tenure, which could explain part of the gap.
