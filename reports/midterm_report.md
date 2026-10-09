@@ -1,5 +1,3 @@
-# Midterm Report Outline
-
 ## 1. Problem, Questions and Hypotheses
 
 ### 1.1 Decision Context
