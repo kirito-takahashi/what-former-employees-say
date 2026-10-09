@@ -40,7 +40,6 @@ Original Dataset: [Glassdoor Job Reviews 2](https://www.kaggle.com/datasets/davi
 License: [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
 It has 9.9M rows and includes numerical, categorical, text, and time series data.
-
 Reviews are voluntary and employment status is self-reported.
 
 ### 2.2 Target Population and Observed Sample
@@ -52,23 +51,20 @@ We therefore acknowledge these limitations before the analysis.
 ### 2.3 Duplicated, Repeated and Missing Observations
 
 **Duplicates**
-
 We dropped rows that were identical on title, rating, status, Pros, Cons, company ID, date and job. This removed 435,648 rows (4.4% of all).
 
-```python
+```python3
 key = ["title", "rating", "status", "pros", "cons", "firm_id", "date", "job"]
 df = df.drop_duplicates(subset=key)
 ```
 
 **Repeated**
-
 Reviews from the same employer share the same pay, managers and events, so their ratings tend to move together. We therefore keep each employer in a single data split. We cannot detect the same person reviewing twice because the data have no reviewer ID.
 
 **Missing**
-
 We dropped rows missing company ID, rating, status or date, which removed only 368 rows. We did not impute because so few rows were affected.
 
-```python
+```python3
 df["former"] = status.str.extract(r"^(Current|Former) ")[0].map({"Current": 0, "Former": 1})
 df["date"] = pd.to_datetime(df["date"], errors="coerce")
 df["rating"] = pd.to_numeric(df["rating"], errors="coerce")
@@ -147,7 +143,5 @@ Across all reviews, former employees rate their employer 0.50 points lower than 
 ### 6.1 Next Steps
 
 For RQ1, we will compute the within-employer gap with its bootstrap CI and compare it with the pooled gap.
-
 For RQ2, we will fit the TF-IDF model, evaluate it on same-employer, same-rating pairs in the test set, and compare it with the word count model.
-
 For RQ3, we will run the resampling on the reference employers and check whether it confirms n\* = 183. We will also repeat each analysis with other thresholds to see whether the conclusions change. Finally, we will compare the RQ1 gap within tenure bands, because former and current employees may differ in tenure, which could explain part of the gap.
