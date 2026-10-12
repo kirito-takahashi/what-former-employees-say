@@ -116,6 +116,20 @@ For each employer with at least 10 former and 10 current reviews (8,539 employer
 
 ### 4.2 RQ2: Text Signal
 
+**TF-IDF.** For term $t$ in review $d$ (scikit-learn definition, [User Guide: Tf–idf term weighting](https://scikit-learn.org/stable/modules/feature_extraction.html#tfidf-term-weighting)):
+
+$$
+\text{tf-idf}(t,d) = \text{tf}(t,d) \times \left(\ln\frac{1+n}{1+\text{df}(t)} + 1\right)
+$$
+
+where $\text{tf}(t,d)$ is the count of $t$ in $d$, $\text{df}(t)$ is the number of reviews containing $t$, and $n$ is the number of reviews. Each review's vector is then scaled to unit length. Words that appear in many reviews get less weight.
+
+**Loss.** Logistic regression is trained by minimizing the cross-entropy (log) loss, which measures how far the predicted probability $\hat{p}_i$ is from the true label $y_i$ (1 = former, 0 = current). We use it because it penalizes confident wrong predictions heavily and gives probabilities that can be ranked for the AUC ([scikit-learn User Guide: Logistic regression](https://scikit-learn.org/stable/modules/linear_model.html#binary-case)).
+
+$$
+L = -\frac{1}{n}\sum_{i=1}^{n}\Big(y_i\log\hat{p}_i+(1-y_i)\log(1-\hat{p}_i)\Big)
+$$
+
 We split all of the companies into train, validation, and test sets. We set aside 80% for training and 20% for testing, then split the training data into 80% for training and 20% for validation. So no employer appears in more than one set. Otherwise, the model could learn employer-specific words, such as product names, and look better than it really is. We fit the TF-IDF vocabulary and logistic regression only on the training set. We use the validation set to tune settings such as regularization strength, and we use the test set once. Before fitting, we remove phrases that state the status outright, such as "I left" and "laid off". Past-tense wording such as “was” or “used to” can signal current-former status, so we check whether such words appear among the top words of prediction. We evaluate on pairs of one former and one current review from the same test employer with the same rating. The AUC is the share of pairs in which the model gives the former review the higher score. We average the AUC across employers and compute its 95% CI by bootstrapping of test employers. The word count model is evaluated on the same pairs. Finally, we list the 20 words with the largest coefficients for former-employee status to test whether "management" is among them.
 
 ### 4.3 RQ3: Reviews Needed
