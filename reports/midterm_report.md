@@ -80,7 +80,7 @@ Most ratings are 4 or 5 (mean 3.71, median 4), and former employees rate 0.50 lo
 
 **RQ1.** The baseline is the pooled gap. We calculate it as the average former rating minus the current rating across all reviews, ignoring the employer. The gap is −0.50.
 
-**RQ2.** We use a word-count model as the baseline: a logistic regression on raw word counts in Cons.
+**RQ2.** We use a word-count model as the baseline: a logistic regression on the number of words in Cons.
 
 **RQ3.** We use a normal approximation as the baseline. For a gap between two group means with n reviews each, requiring the 95% margin to be at most 0.25 gives
 
@@ -95,7 +95,7 @@ where σ = 1.22 is the standard deviation of ratings across all reviews in the s
 | RQ  | Compared with                    | If different or better                              | If similar or worse        |
 | :-- | :------------------------------- | :-------------------------------------------------- | :------------------------- |
 | RQ1 | Pooled gap (−0.50)               | Employer mix was distorting the pooled gap          | The pooled gap is enough   |
-| RQ2 | Word count model                 | TF-IDF weighting adds signal beyond raw word counts | Raw word counts are enough |
+| RQ2 | Word count model                 | TF-IDF adds signal beyond word count                | Word count is enough       |
 | RQ3 | Normal approximation (n\* = 183) | Use the resampling result                           | The formula is enough      |
 
 ## 4. Evaluation Design
