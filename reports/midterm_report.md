@@ -53,23 +53,11 @@ We therefore acknowledge these limitations before the analysis.
 **Duplicates**
 We dropped rows that were identical on title, rating, status, Pros, Cons, company ID, date and job. This removed 435,648 rows (4.4% of all).
 
-```python3
-key = ["title", "rating", "status", "pros", "cons", "firm_id", "date", "job"]
-df = df.drop_duplicates(subset=key)
-```
-
 **Repeated**
 Reviews from the same employer share the same pay, managers and events, so their ratings tend to move together. We therefore keep each employer in a single data split. We cannot detect the same person reviewing twice because the data have no reviewer ID.
 
 **Missing**
 We dropped rows missing company ID, rating, status or date, which removed only 368 rows. We did not impute because so few rows were affected.
-
-```python3
-df["former"] = status.str.extract(r"^(Current|Former) ")[0].map({"Current": 0, "Former": 1})
-df["date"] = pd.to_datetime(df["date"], errors="coerce")
-df["rating"] = pd.to_numeric(df["rating"], errors="coerce")
-df = df.dropna(subset=["firm_id", "rating", "former", "date"])
-```
 
 ### 2.4 Filtering
 
@@ -77,10 +65,12 @@ We kept only regular employees' reviews written in 2020 or later, which left 4,9
 
 ### 2.5 Distributions
 
-|                                            |                                                              |
-| :----------------------------------------: | :----------------------------------------------------------: |
-|      ![Rating](../figures/rating.png)      |         ![Former vs current](../figures/status.png)          |
-| ![Cons length](../figures/cons_length.png) | ![Reviews per employer](../figures/reviews_per_employer.png) |
+<p>
+<img src="../figures/rating.png" alt="Rating" width="24%">
+<img src="../figures/status.png" alt="Former vs current" width="24%">
+<img src="../figures/cons_length.png" alt="Cons length" width="24%">
+<img src="../figures/reviews_per_employer.png" alt="Reviews per employer" width="24%">
+</p>
 
 Most ratings are 4 or 5 (mean 3.71, median 4), and former employees rate 0.50 lower than current employees on average. Current employees account for 59% of reviews and former employees 41%. Most Cons are short, with a median of 8 words. The number of reviews per employer is highly skewed (median 7, mean 178.5), and the 7% of employers with at least 183 reviews in each group account for 80% of all reviews.
 
@@ -88,7 +78,7 @@ Most ratings are 4 or 5 (mean 3.71, median 4), and former employees rate 0.50 lo
 
 ### 3.1 Baseline per Research Question
 
-**RQ1.** The baseline is the pooled gap.  We calculate it as the average former rating minus the current rating across all reviews, ignoring the employer. The gap is −0.50.
+**RQ1.** The baseline is the pooled gap. We calculate it as the average former rating minus the current rating across all reviews, ignoring the employer. The gap is −0.50.
 
 **RQ2.** We use a word-count model as the baseline: a logistic regression on raw word counts in Cons.
 
@@ -153,8 +143,6 @@ Across all reviews, former employees rate their employer 0.50 points lower than 
 |                                                                                                            | The results hold beyond Glassdoor employees from 2020 onward                  |
 
 ## 6. Next Steps and Decision Rule
-
-### 6.1 Next Steps
 
 For RQ1, we will compute the within-employer gap with its bootstrap CI and compare it with the pooled gap.
 For RQ2, we will fit the TF-IDF model, evaluate it on same-employer, same-rating pairs in the test set, and compare it with the word count model.
