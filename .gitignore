@@ -3,3 +3,6 @@ data/
 
 # DS_store
 .DS_Store
+
+# Venv
+.venv/
