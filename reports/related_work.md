@@ -1,0 +1,19 @@
+# Related Work
+
+Online employee reviews provide a valuable source of information for studying differences between current and former employees. Platforms such as Glassdoor collect numerical ratings, written feedback, and self-reported employment status, allowing researchers to examine employee satisfaction and turnover-related patterns. Previous studies have used these data to identify factors associated with employee departures and differences in workplace experiences. However, their approaches vary in how they analyze review text and compare employee groups.
+
+Large-scale studies have examined the relationship between employee satisfaction and turnover using online reviews. Sheykhi et al. (2026) use self-reported current or former status as a proxy for voluntary turnover in more than 700,000 reviews of U.S. listed firms, excluding reviews mentioning involuntary departures. They use a large language model to score intrinsic and extrinsic satisfaction. Intrinsic satisfaction, including culture, leadership, and work-life balance, is consistently associated with a lower probability of being a former employee, while extrinsic satisfaction matters mainly for blue-collar workers and labor-intensive firms. The authors also acknowledge possible reverse causality, as leaving a firm may influence how employees evaluate their experiences.
+
+Other research has combined numerical ratings with text analysis to investigate employee turnover. Stamolampros et al. (2019) analyze 297,933 reviews of 11,975 U.S. tourism and hospitality firms. Their logistic regression identifies career opportunities as the strongest rating-based predictor of leaving. They also apply a structural topic model to pros, cons, and advice-to-management text, using overall ratings and employment status as covariates to examine differences in review themes. These findings are limited to the tourism and hospitality industry.
+
+Direct comparisons of current and former employees provide further evidence of differences in their workplace evaluations. Pan et al. (2023) compare approximately 41,000 reviews from Amazon, Apple, Microsoft, and Google using sub-ratings, word clouds, and word frequencies. They find that former employees rate all five dimensions lower than current employees, while both groups express dissatisfaction with senior management. However, their analysis remains descriptive, without formal statistical tests, and covers only four large technology firms.
+
+Together, these studies demonstrate the value of Glassdoor reviews for examining employee satisfaction and employment status. However, they leave room for broader statistical comparisons of the review text itself, particularly when former and current employees give the same overall rating. Our project addresses this gap by estimating within-employer rating differences, testing whether Cons text distinguishes former from current employees at the same rating, and examining the sample sizes needed for reliable comparisons.
+
+## References
+
+Pan, X., Du, W., & Ren, Z. (2023). Capturing the difference between former and current employees’ emotional attitudes based on the online reviews. In A. El-Hashash et al. (Eds.), *Proceedings of the 2nd International Conference on Internet, Education and Information Technology (IEIT 2022)* (Advances in Computer Science Research, Vol. 100, pp. 71–76). Atlantis Press. https://doi.org/10.2991/978-94-6463-058-9_13
+
+Sheykhi, S., Bams, D., Renders, A., & Struyfs, K. (2026). Learning from those who leave: Intrinsic and extrinsic satisfaction as determinants of employee retention. *Applied Economics Letters*. Advance online publication. https://doi.org/10.1080/13504851.2026.2730483
+
+Stamolampros, P., Korfiatis, N., Chalvatzis, K., & Buhalis, D. (2019). Job satisfaction and employee turnover determinants in high contact services: Insights from employees’ online reviews. *Tourism Management, 75*, 130–147. https://doi.org/10.1016/j.tourman.2019.04.030
