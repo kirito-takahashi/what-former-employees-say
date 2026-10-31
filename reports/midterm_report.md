@@ -92,11 +92,11 @@ where σ = 1.22 is the standard deviation of ratings across all reviews in the s
 
 ### 3.2 Fair Comparison
 
-| RQ  | Compared with                    | If different or better                              | If similar or worse        |
-| :-- | :------------------------------- | :-------------------------------------------------- | :------------------------- |
-| RQ1 | Pooled gap (−0.50)               | Employer mix was distorting the pooled gap          | The pooled gap is enough   |
-| RQ2 | Word count model                 | TF-IDF adds signal beyond word count                | Word count is enough       |
-| RQ3 | Normal approximation (n\* = 183) | Use the resampling result                           | The formula is enough      |
+| RQ  | Compared with                    | If different                               | If similar               |
+| :-- | :------------------------------- | :----------------------------------------- | :----------------------- |
+| RQ1 | Pooled gap (-0.50)               | Employer mix was distorting the pooled gap | The pooled gap is enough |
+| RQ2 | Word count model                 | TF-IDF adds signal beyond word count       | Word count is enough     |
+| RQ3 | Normal approximation (n\* = 183) | Use the resampling result                  | The formula is enough    |
 
 ## 4. Evaluation Design
 
