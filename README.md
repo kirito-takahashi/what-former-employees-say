@@ -12,15 +12,12 @@ what-former-employees-say/
 │   ├── raw/
 │   │   └── all_reviews 2.csv            # original Kaggle data
 │   └── processed/
-│       └── processed.csv                # cleaned data used by the notebooks
 ├── figures/
 │   ├── cons_length.png
 │   ├── rating.png
 │   ├── reviews_per_employer.png
 │   └── status.png
 ├── notebooks/
-│   ├── 0.0-kt-data-prep.ipynb
-│   └── 1.0-kt-sample-eda.ipynb
 └── reports/
     └── midterm_report.md
 ```
