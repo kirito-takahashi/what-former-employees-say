@@ -8,8 +8,8 @@ An IS507 Data, Statistical Models, and Information team project on Glassdoor rev
 what-former-employees-say/
 ├── README.md
 ├── requirements.txt
-├── data/                                # not committed
-│   ├── raw/
+├── data/
+│   ├── raw/            # not committed  
 │   │   └── all_reviews 2.csv            # original Kaggle data
 │   └── processed/
 ├── figures/
@@ -19,6 +19,7 @@ what-former-employees-say/
 │   └── status.png
 ├── notebooks/
 └── reports/
+    ├── related_work.md
     └── midterm_report.md
 ```
 
