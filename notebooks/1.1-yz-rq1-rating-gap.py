@@ -1,0 +1,336 @@
+#!/usr/bin/env python3
+"""
+RQ1 - Within the same company, do former and current employees rate differently?
+
+Works on the team's processed file (data/processed/processed.parquet), which already
+has the cleaning from the report applied (duplicates, missing values, employees only,
+2020 onward). Columns used: firm_id, rating, former (0/1), tenure (category).
+
+Implements Sections 3.1, 4.1 and 6 of the midterm report:
+
+  * per-employer gap  = mean rating of former  -  mean rating of current
+  * overall estimate  = average of employer gaps, every employer weighted equally
+  * 95% CI            = percentile bootstrap over EMPLOYERS (employers, not reviews,
+                        are the independent units)
+  * baseline          = pooled gap (average former rating - average current rating
+                        over all reviews, ignoring the employer)
+  * H1 is rejected if the CI includes 0 or lies above 0
+  * a gap smaller than 0.25 in absolute size is "too small to matter"
+  * robustness        = repeat with >= 5, 10, 20, 50 reviews per group
+  * next step         = repeat the analysis within tenure bands
+
+Usage (run from the repo root; adjust the path if needed)
+-----
+    python rq1_rating_gap.py --data data/processed/processed.parquet
+
+In a notebook (notebooks/ folder), import and call the pieces yourself:
+
+    import sys; sys.path.append("..")
+    from rq1_rating_gap import load_processed, run_rq1, print_report
+    df, log = load_processed("../data/processed/processed.parquet")
+    res = run_rq1(df)
+    print_report(res, log)
+    res["gaps"]            # one row per employer: n_former, n_current, gap
+    res["sensitivity"]     # k = 5, 10, 20, 50
+    res["tenure"]          # gap within tenure bands
+"""
+from __future__ import annotations
+
+import argparse
+import re
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+# --------------------------------------------------------------------------- #
+# Settings (all taken from the report)
+# --------------------------------------------------------------------------- #
+MIN_REVIEWS = 10             # >= 10 former and >= 10 current per employer (Sec. 2.4 / 4.1)
+SENSITIVITY_K = [5, 10, 20, 50]   # Sec. 4.1 robustness check
+MEANINGFUL_GAP = 0.25        # |gap| below this is too small to matter (Sec. 4.1)
+EXCLUDED_EMP_TYPES = ("intern", "contractor")   # already removed upstream; checked below
+CI_LEVEL = 0.95
+N_BOOT = 10_000
+SEED = 507
+
+# Columns in processed.parquet
+COL_FIRM, COL_RATING, COL_FORMER = "firm_id", "rating", "former"
+COL_TENURE, COL_EMP_TYPE = "tenure", "emp_type"
+
+# Chart colors (reference palette: blue = series 1, orange = series 2; neutral ink)
+BLUE, ORANGE = "#2a78d6", "#eb6834"
+INK, INK_2, GRID, SURFACE, BAR = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb", "#c9c8c2"
+
+
+# --------------------------------------------------------------------------- #
+# Loading
+# --------------------------------------------------------------------------- #
+def load_processed(path: str | Path) -> tuple[pd.DataFrame, dict]:
+    """
+    Read processed.parquet and return (df with company, rating, former[bool], tenure), log.
+    No re-cleaning: the file already has the report's filters applied. We only check it.
+    """
+    path = Path(path)
+    cols = [COL_FIRM, COL_RATING, COL_FORMER, COL_TENURE, COL_EMP_TYPE]
+    raw = pd.read_parquet(path)
+    missing = [c for c in (COL_FIRM, COL_RATING, COL_FORMER) if c not in raw.columns]
+    if missing:
+        raise SystemExit(f"{path} is missing columns {missing}. Found: {list(raw.columns)}")
+    raw = raw[[c for c in cols if c in raw.columns]]
+
+    log = {"rows in processed file": len(raw)}
+    if COL_EMP_TYPE in raw.columns:
+        bad = raw[COL_EMP_TYPE].astype("string").str.lower().str.contains(
+            "|".join(EXCLUDED_EMP_TYPES), na=False)
+        log["interns/contractors still in file (should be 0)"] = int(bad.sum())
+        raw = raw[~bad]
+    n_na = int(raw[[COL_FIRM, COL_RATING, COL_FORMER]].isna().any(axis=1).sum())
+    log["rows with missing firm/rating/former (should be 0)"] = n_na
+    raw = raw.dropna(subset=[COL_FIRM, COL_RATING, COL_FORMER])
+
+    df = pd.DataFrame({
+        "company": raw[COL_FIRM].astype("category"),
+        "rating": raw[COL_RATING].astype("float32"),
+        "former": raw[COL_FORMER].astype(bool),
+    })
+    if COL_TENURE in raw.columns:
+        df["tenure"] = raw[COL_TENURE].astype("category")
+    log["reviews used"] = len(df)
+    return df.reset_index(drop=True), log
+
+
+# --------------------------------------------------------------------------- #
+# Core estimates (Sec. 4.1)
+# --------------------------------------------------------------------------- #
+def employer_gaps(df: pd.DataFrame, k: int = MIN_REVIEWS) -> pd.DataFrame:
+    """One row per employer with >= k former AND >= k current reviews."""
+    g = (df.groupby(["company", "former"], observed=True)["rating"]
+           .agg(["mean", "size"]).unstack("former"))
+    n_f, n_c = g[("size", True)], g[("size", False)]
+    ok = (n_f >= k) & (n_c >= k)          # NaN (employer lacks a group) compares False
+    out = pd.DataFrame({
+        "n_former": n_f[ok].astype(int), "n_current": n_c[ok].astype(int),
+        "mean_former": g[("mean", True)][ok], "mean_current": g[("mean", False)][ok],
+    })
+    out["gap"] = out["mean_former"] - out["mean_current"]   # former minus current
+    return out
+
+
+def pooled_gap(df: pd.DataFrame) -> float:
+    """Baseline: average former rating minus average current rating, ignoring the employer."""
+    m = df.groupby("former")["rating"].mean()
+    return float(m[True] - m[False])
+
+
+def bootstrap_mean_ci(x, n_boot: int = N_BOOT, level: float = CI_LEVEL,
+                      seed: int = SEED, chunk: int = 500) -> tuple[float, float]:
+    """Percentile bootstrap CI for the mean, resampling employers with replacement."""
+    x = np.asarray(x, dtype=float)
+    n = len(x)
+    if n < 2:
+        return (np.nan, np.nan)
+    rng = np.random.default_rng(seed)
+    means = np.empty(n_boot)
+    for s in range(0, n_boot, chunk):
+        e = min(s + chunk, n_boot)
+        means[s:e] = x[rng.integers(0, n, size=(e - s, n))].mean(axis=1)
+    a = (1 - level) / 2
+    lo, hi = np.quantile(means, [a, 1 - a])
+    return float(lo), float(hi)
+
+
+def summarize(gaps: pd.Series, label: str = "") -> dict:
+    """Mean employer gap, bootstrap CI and the H1 / practical-size verdicts."""
+    x = gaps.dropna().to_numpy()
+    lo, hi = bootstrap_mean_ci(x)
+    mean = float(x.mean()) if len(x) else np.nan
+    return {
+        "label": label, "n_employers": len(x), "mean_gap": mean,
+        "ci_low": lo, "ci_high": hi, "median_gap": float(np.median(x)) if len(x) else np.nan,
+        "share_employers_negative": float((x < 0).mean()) if len(x) else np.nan,
+        # H1 is rejected if the CI includes 0 or lies above 0
+        "H1_supported": bool(hi < 0),
+        # a statistically negative gap can still be too small to matter
+        "gap_at_least_0.25": bool(abs(mean) >= MEANINGFUL_GAP),
+    }
+
+
+def run_rq1(df: pd.DataFrame, k: int = MIN_REVIEWS) -> dict:
+    """Main analysis + baseline comparison + sensitivity + tenure bands."""
+    gaps = employer_gaps(df, k)
+    main = summarize(gaps["gap"], f"main (k={k})")
+    in_sample = df[df["company"].isin(gaps.index)]
+
+    main["pooled_gap_all_reviews"] = pooled_gap(df)
+    main["pooled_gap_same_employers"] = pooled_gap(in_sample)
+    main["pooled_inside_ci"] = bool(main["ci_low"] <= main["pooled_gap_same_employers"] <= main["ci_high"])
+    main["share_reviews_kept"] = len(in_sample) / len(df)
+
+    sens = []
+    for kk in SENSITIVITY_K:
+        g = employer_gaps(df, kk)
+        s = summarize(g["gap"], f"k={kk}")
+        s["share_reviews_kept"] = df["company"].isin(g.index).mean()
+        sens.append(s)
+
+    tenure = []
+    if "tenure" in df.columns and df["tenure"].notna().any():
+        col = df["tenure"]
+        present = [str(c) for c in (col.cat.categories if hasattr(col, "cat") else col.dropna().unique())
+                   if (col.astype(str) == str(c)).any()]
+
+        def _order(label: str):   # "less than 1 year" < "more than 1 year" < ... < "more than 10 years"
+            nums = re.findall(r"\d+", label)
+            return (0 if "less" in label.lower() else 1, int(nums[0]) if nums else 999)
+        cats = sorted(present, key=_order)
+        for band in cats:
+            sub = df[df["tenure"].astype(str) == band]
+            g = employer_gaps(sub, k)
+            if len(g) >= 2:
+                s = summarize(g["gap"], band)
+                s["pooled_gap"] = pooled_gap(sub)
+                tenure.append(s)
+
+    return {"gaps": gaps, "main": main, "sensitivity": pd.DataFrame(sens),
+            "tenure": pd.DataFrame(tenure)}
+
+
+# --------------------------------------------------------------------------- #
+# Figures (static PNG; blue = within-employer estimate, orange = pooled baseline)
+# --------------------------------------------------------------------------- #
+def _style(ax):
+    ax.set_facecolor(SURFACE)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    for side in ("left", "bottom"):
+        ax.spines[side].set_color(GRID)
+    ax.tick_params(colors=INK_2, labelsize=9)
+    ax.grid(axis="y", color=GRID, linewidth=0.6)
+    ax.set_axisbelow(True)
+
+
+def plot_employer_gaps(res: dict, path: Path):
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    gaps, m = res["gaps"]["gap"], res["main"]
+    fig, ax = plt.subplots(figsize=(8, 4.4), facecolor=SURFACE)
+    _style(ax)
+    ax.hist(gaps.clip(-3, 3), bins=np.arange(-3, 3.01, 0.1), color=BAR, edgecolor=SURFACE, linewidth=0.8)
+    ax.axvspan(m["ci_low"], m["ci_high"], color=BLUE, alpha=0.25, lw=0)
+    ax.axvline(m["mean_gap"], color=BLUE, lw=2)
+    ax.axvline(m["pooled_gap_same_employers"], color=ORANGE, lw=2)
+    ax.axvline(0, color=INK, lw=1, ls="--")
+    ax.axvline(-MEANINGFUL_GAP, color=INK_2, lw=1, ls=":")
+    ax.legend(handles=[
+        Line2D([], [], color=BLUE, lw=2,
+               label=f"Within-employer mean {m['mean_gap']:.2f}  (95% CI {m['ci_low']:.2f} to {m['ci_high']:.2f})"),
+        Line2D([], [], color=ORANGE, lw=2, label=f"Pooled gap (baseline) {m['pooled_gap_same_employers']:.2f}"),
+        Line2D([], [], color=INK, lw=1, ls="--", label="0 = no gap"),
+        Line2D([], [], color=INK_2, lw=1, ls=":", label="-0.25 = smallest gap that matters")],
+        loc="upper right", frameon=False, fontsize=8.5, labelcolor=INK_2)
+    ax.set_xlabel("Employer gap = mean former rating - mean current rating (stars)", color=INK_2)
+    ax.set_ylabel("Employers", color=INK_2)
+    ax.set_title(f"RQ1: gap by employer ({m['n_employers']:,} employers with >= {MIN_REVIEWS} reviews per group)",
+                 color=INK, fontsize=11, loc="left")
+    fig.tight_layout()
+    fig.savefig(path, dpi=200, facecolor=SURFACE)
+    plt.close(fig)
+
+
+def _errorbar_plot(tbl: pd.DataFrame, labels, title: str, xlabel: str, path: Path, ref=None):
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    fig, ax = plt.subplots(figsize=(7, 4), facecolor=SURFACE)
+    _style(ax)
+    x = np.arange(len(tbl))
+    ax.errorbar(x, tbl["mean_gap"], yerr=[tbl["mean_gap"] - tbl["ci_low"], tbl["ci_high"] - tbl["mean_gap"]],
+                fmt="o", color=BLUE, ecolor=BLUE, elinewidth=1.5, capsize=3, markersize=7,
+                markeredgecolor=SURFACE, markeredgewidth=1.5)
+    handles = [Line2D([], [], color=BLUE, marker="o", lw=1.5, label="Within-employer mean, 95% CI")]
+    if ref is not None:
+        ax.axhline(ref, color=ORANGE, lw=1.5)
+        handles.append(Line2D([], [], color=ORANGE, lw=1.5, label=f"Pooled gap (baseline) {ref:.2f}"))
+    ax.axhline(0, color=INK, lw=1, ls="--")
+    ax.axhline(-MEANINGFUL_GAP, color=INK_2, lw=1, ls=":")
+    handles += [Line2D([], [], color=INK, lw=1, ls="--", label="0 = no gap"),
+                Line2D([], [], color=INK_2, lw=1, ls=":", label="-0.25 = smallest gap that matters")]
+    ax.set_xlim(-0.6, len(tbl) - 0.4)
+    ax.set_ylim(min(tbl["ci_low"].min(), ref if ref is not None else 0) - 0.1, 0.12)
+    ax.set_xticks(x, [f"{l}\n(n={n:,})" for l, n in zip(labels, tbl["n_employers"])])
+    ax.set_xlabel(xlabel + " (n = employers)", color=INK_2)
+    ax.set_ylabel("Mean employer gap (stars)", color=INK_2)
+    ax.set_title(title, color=INK, fontsize=11, loc="left")
+    ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.27), ncol=2,
+              frameon=False, fontsize=8.5, labelcolor=INK_2)
+    fig.tight_layout()
+    fig.savefig(path, dpi=200, facecolor=SURFACE, bbox_inches="tight")
+    plt.close(fig)
+
+
+# --------------------------------------------------------------------------- #
+# Reporting
+# --------------------------------------------------------------------------- #
+def print_report(res: dict, log: dict | None = None):
+    m = res["main"]
+    print("\n" + "=" * 70 + "\nRQ1  Within-employer rating gap (former minus current)\n" + "=" * 70)
+    if log:
+        print("\nData checks (the report has 4,950,344 reviews):")
+        for k_, v in log.items():
+            print(f"  {k_:<58}{v:>12,}")
+    print(f"\nEmployers with >= {MIN_REVIEWS} former and >= {MIN_REVIEWS} current: {m['n_employers']:,} "
+          f"({m['share_reviews_kept']:.1%} of reviews)   [report: 8,539 and 98%]")
+    print(f"Mean within-employer gap : {m['mean_gap']:+.3f}   95% CI [{m['ci_low']:+.3f}, {m['ci_high']:+.3f}]")
+    print(f"Median employer gap      : {m['median_gap']:+.3f}   ({m['share_employers_negative']:.1%} of employers negative)")
+    print(f"Pooled gap (baseline)    : {m['pooled_gap_all_reviews']:+.3f} all reviews, "
+          f"{m['pooled_gap_same_employers']:+.3f} same employers   [report: -0.50]")
+    print(f"Pooled gap inside the within-employer CI? {m['pooled_inside_ci']}")
+    verdict = "SUPPORTED" if m["H1_supported"] else "REJECTED"
+    print(f"\nH1 (former rate lower, within employer): {verdict}  "
+          f"(rejected if CI includes 0 or lies above 0; upper bound = {m['ci_high']:+.3f})")
+    print(f"Gap at least {MEANINGFUL_GAP} in absolute size (matters to users): {m['gap_at_least_0.25']}")
+    cols = ["label", "n_employers", "mean_gap", "ci_low", "ci_high", "H1_supported", "share_reviews_kept"]
+    print("\nSensitivity to the minimum reviews per group:")
+    print(res["sensitivity"][cols].to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+    if len(res["tenure"]):
+        print("\nGap within tenure bands:")
+        print(res["tenure"][["label", "n_employers", "mean_gap", "ci_low", "ci_high", "pooled_gap"]]
+              .to_string(index=False, float_format=lambda v: f"{v:.3f}"))
+
+
+def save_outputs(res: dict, outdir: Path, figdir: Path):
+    outdir.mkdir(parents=True, exist_ok=True)
+    figdir.mkdir(parents=True, exist_ok=True)
+    res["gaps"].to_csv(outdir / "rq1_employer_gaps.csv")
+    pd.DataFrame([res["main"]]).to_csv(outdir / "rq1_summary.csv", index=False)
+    res["sensitivity"].to_csv(outdir / "rq1_sensitivity.csv", index=False)
+    if len(res["tenure"]):
+        res["tenure"].to_csv(outdir / "rq1_tenure.csv", index=False)
+    plot_employer_gaps(res, figdir / "rq1_employer_gaps.png")
+    s = res["sensitivity"]
+    _errorbar_plot(s, [f">= {l.split('=')[1]}" for l in s["label"]],
+                   "RQ1 gap by minimum-review threshold", "Minimum reviews per group",
+                   figdir / "rq1_sensitivity.png", ref=res["main"]["pooled_gap_same_employers"])
+    if len(res["tenure"]):
+        t = res["tenure"]
+        _errorbar_plot(t, list(t["label"]), "RQ1 gap by tenure band", "Tenure",
+                       figdir / "rq1_tenure.png", ref=res["main"]["pooled_gap_same_employers"])
+    print(f"\nSaved tables to {outdir}/ and figures to {figdir}/")
+
+
+def main():
+    import matplotlib
+    matplotlib.use("Agg")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--data", default="data/processed/processed.parquet", help="processed parquet file")
+    ap.add_argument("--out", default="results", help="folder for CSV tables")
+    ap.add_argument("--figures", default="figures", help="folder for PNG figures")
+    a = ap.parse_args()
+    df, log = load_processed(a.data)
+    res = run_rq1(df)
+    print_report(res, log)
+    save_outputs(res, Path(a.out), Path(a.figures))
+
+
+if __name__ == "__main__":
+    main()
