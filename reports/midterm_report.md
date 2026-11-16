@@ -66,10 +66,10 @@ We kept only regular employees' reviews written in 2020 or later, which left 4,9
 ### 2.5 Distributions
 
 <p>
-<img src="../figures/rating.png" alt="Rating" width="24%">
-<img src="../figures/status.png" alt="Former vs current" width="24%">
-<img src="../figures/cons_length.png" alt="Cons length" width="24%">
-<img src="../figures/reviews_per_employer.png" alt="Reviews per employer" width="24%">
+<img src="../figures/midterm_report/rating.png" alt="Rating" width="24%">
+<img src="../figures/midterm_report/status.png" alt="Former vs current" width="24%">
+<img src="../figures/midterm_report/cons_length.png" alt="Cons length" width="24%">
+<img src="../figures/midterm_report/reviews_per_employer.png" alt="Reviews per employer" width="24%">
 </p>
 
 Most ratings are 4 or 5 (mean 3.71, median 4), and former employees rate 0.50 lower than current employees on average. Current employees account for 59% of reviews and former employees 41%. Most Cons are short, with a median of 8 words. The number of reviews per employer is highly skewed (median 7, mean 178.5), and the 7% of employers with at least 183 reviews in each group account for 80% of all reviews.
