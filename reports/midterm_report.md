@@ -57,11 +57,11 @@ We dropped rows that were identical on title, rating, status, Pros, Cons, compan
 Reviews from the same employer share the same pay, managers and events, so their ratings tend to move together. We therefore keep each employer in a single data split. We cannot detect the same person reviewing twice because the data have no reviewer ID.
 
 **Missing**
-We dropped rows missing company ID, rating, status or date, which removed only 368 rows. We did not impute because so few rows were affected.
+We dropped rows missing company ID, rating, status, date or Cons text, which removed only 428 rows. We did not impute because so few rows were affected.
 
 ### 2.4 Filtering
 
-We kept only regular employees' reviews written in 2020 or later, which left 4,950,344 reviews. We excluded 'interns' and 'contractors' because for them, 'former' often just means the contract ended, and they make up only 0.1% of reviews. We kept 2020 onward because this is the most recent period available in the dataset, and these reviews still make up over half of the data. Requiring at least 10 former and 10 current reviews leaves 8,539 employers with 98% of the reviews, and requiring at least 1,000 of each leaves 333 employers.
+We kept only regular employees' reviews written in 2020 or later, which left 4,950,343 reviews. We excluded 'interns' and 'contractors' because for them, 'former' often just means the contract ended, and they make up only 0.1% of reviews. We kept 2020 onward because this is the most recent period available in the dataset, and these reviews still make up over half of the data. Requiring at least 10 former and 10 current reviews leaves 8,539 employers with 98% of the reviews, and requiring at least 1,000 of each leaves 333 employers. For RQ2, requiring at least 5 former and 5 current reviews leaves 10,979 employers with 99% of the reviews.
 
 ### 2.5 Distributions
 
